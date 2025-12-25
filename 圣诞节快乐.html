@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>凌如雪女士圣诞节快乐</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            /* 幽深夜空背景 */
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            font-family: 'Times New Roman', serif;
+            touch-action: none; /* 优化触屏体验 */
+        }
+
+        /* 祝福语 - 位于屏幕上方，避免遮挡树 */
+        .ui-container {
+            position: absolute;
+            top: 15%; 
+            left: 0;
+            width: 100%;
+            text-align: center;
+            pointer-events: none; /* 让点击穿透 */
+            z-index: 100;
+        }
+
+        .main-text {
+            font-size: 2.2rem;
+            background: linear-gradient(135deg, #fff 0%, #ffd700 50%, #fff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+            letter-spacing: 2px;
+            animation: floatText 3s ease-in-out infinite alternate;
+        }
+
+        .sub-text {
+            font-size: 1rem;
+            color: #ccc;
+            letter-spacing: 5px;
+            margin-top: 5px;
+            text-transform: uppercase;
+            font-weight: 300;
+        }
+
+        @keyframes floatText {
+            from { transform: translateY(0); opacity: 0.9; }
+            to { transform: translateY(-10px); opacity: 1; text-shadow: 0 0 25px rgba(255, 215, 0, 0.6); }
+        }
+
+        /* 底部交互提示 */
+        .hint {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui-container">
+        <div class="main-text">凌如雪女士<br>圣诞节快乐</div>
+        <div class="sub-text">Merry Christmas</div>
+    </div>
+    
+    <div class="hint">👋 滑动屏幕旋转圣诞树</div>
+
+    <canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let w, h;
+    
+    // 旋转变量
+    let angleY = 0;
+    let targetAngleY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let autoRotateSpeed = 0.005; // 自动旋转速度
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- 交互控制 (支持鼠标和触摸) ---
+    const handleStart = (x) => { isDragging = true; startX = x; };
+    const handleMove = (x) => {
+        if (!isDragging) return;
+        let delta = x - startX;
+        targetAngleY += delta * 0.008; // 拖动灵敏度
+        startX = x;
+    };
+    const handleEnd = () => { isDragging = false; };
+
+    canvas.addEventListener('mousedown', e => handleStart(e.clientX));
+    canvas.addEventListener('mousemove', e => handleMove(e.clientX));
+    window.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX));
+    canvas.addEventListener('touchmove', e => handleMove(e.touches[0].clientX));
+    window.addEventListener('touchend', handleEnd);
+
+
+    // --- 粒子系统 ---
+    class Particle {
+        constructor() {
+            this.reset();
+        }
+
+        reset() {
+            // 树身参数
+            this.h = Math.random(); // 0(顶) -> 1(底)
+            
+            // 圣诞树形状公式 (圆锥体)
+            const maxRadius = 220;
+            const treeHeight = 520;
+            
+            // 越往下半径越大，稍微加点曲率让树胖一点
+            let r = Math.pow(this.h, 0.85) * maxRadius; 
+            
+            // 随机角度
+            this.angle = Math.random() * Math.PI * 2;
+            
+            // 3D 原始坐标
+            this.x = Math.cos(this.angle) * r;
+            this.y = (this.h - 0.5) * treeHeight + 50; // 居中调整
+            this.z = Math.sin(this.angle) * r;
+            
+            // 增加一点随机扰动，模拟树叶的不规则
+            this.x += (Math.random()-0.5) * 10;
+            this.y += (Math.random()-0.5) * 10;
+            this.z += (Math.random()-0.5) * 10;
+
+            // 颜色定义
+            let rand = Math.random();
+            if (rand > 0.92) {
+                this.color = '#ff3333'; // 红色彩球
+                this.size = Math.random() * 3 + 2;
+                this.isLight = true;
+            } else if (rand > 0.84) {
+                this.color = '#ffd700'; // 金色彩球
+                this.size = Math.random() * 3 + 2;
+                this.isLight = true;
+            } else {
+                // 树叶：深绿到嫩绿的渐变
+                let hue = 120 + Math.random() * 40; 
+                let light = 20 + Math.random() * 40;
+                this.color = `hsl(${hue}, 70%, ${light}%)`;
+                this.size = Math.random() * 2 + 0.5;
+                this.isLight = false;
+            }
+
+            // 闪烁动画参数
+            this.blinkPhase = Math.random() * Math.PI;
+            this.blinkSpeed = 0.02 + Math.random() * 0.04;
+        }
+
+        draw(cx, cy, rotation, time) {
+            // 绕Y轴旋转
+            let cos = Math.cos(rotation);
+            let sin = Math.sin(rotation);
+            
+            let rx = this.x * cos - this.z * sin;
+            let rz = this.z * cos + this.x * sin;
+
+            // 透视投影
+            let fov = 350;
+            let scale = fov / (fov + rz);
+            
+            if (scale < 0) return; // 剔除背面
+
+            let x2d = cx + rx * scale;
+            let y2d = cy + this.y * scale;
+            let size2d = this.size * scale;
+
+            // 呼吸/闪烁效果
+            let alpha = 1;
+            if (this.isLight) {
+                // 彩灯闪烁明显
+                alpha = 0.6 + 0.4 * Math.sin(time * this.blinkSpeed + this.blinkPhase);
+                // 彩灯加光晕
+                ctx.globalAlpha = 0.4 * alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(x2d, y2d, size2d * 2.5, 0, Math.PI * 2); // 光晕大一点
+                ctx.fill();
+            } else {
+                // 树叶微微忽明忽暗
+                alpha = 0.8 + 0.2 * Math.sin(time * 0.02 + this.blinkPhase);
+            }
+
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(x2d, y2d, size2d, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // --- 顶部3D爱心 ---
+    class Heart {
+        constructor() {
+            this.points = [];
+            // 生成爱心点阵
+            for(let i=0; i<100; i++) {
+                let t = i * 0.15;
+                let x = 16 * Math.pow(Math.sin(t), 3);
+                let y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+                this.points.push({x, y, z: (Math.random()-0.5)*5});
+            }
+            this.yOffset = -230; // 树顶高度
+        }
+
+        draw(cx, cy, rotation, time) {
+            let beat = 1 + Math.sin(time * 4) * 0.12; // 心跳幅度
+            
+            ctx.fillStyle = "#ff0055";
+            
+            this.points.forEach(p => {
+                // 1. 缩放（心跳）
+                let px = p.x * beat * 1.5;
+                let py = p.y * beat * 1.5;
+                let pz = p.z;
+
+                // 2. 旋转（随树一起转）
+                let cos = Math.cos(rotation);
+                let sin = Math.sin(rotation);
+                let rx = px * cos - pz * sin;
+                let rz = pz * cos + px * sin;
+
+                // 3. 投影
+                let fov = 350;
+                let scale = fov / (fov + rz);
+                let x2d = cx + rx * scale;
+                let y2d = cy + (py + this.yOffset) * scale;
+
+                ctx.beginPath();
+                ctx.arc(x2d, y2d, 2.5 * scale, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+    }
+
+    // --- 雪花系统 ---
+    class Snow {
+        constructor() {
+            this.reset(true);
+        }
+        reset(initial = false) {
+            this.x = (Math.random() - 0.5) * w;
+            this.y = initial ? (Math.random() - 0.5) * h : -h/2;
+            this.z = (Math.random() - 0.5) * 500; // 深度
+            this.size = Math.random() * 2 + 1;
+            this.speed = 1 + Math.random() * 2;
+        }
+        draw(cx, cy) {
+            this.y += this.speed;
+            if (this.y > h/2) this.reset(); // 到底部重置
+
+            // 雪花也要透视，才有前后层次感
+            let fov = 350;
+            let scale = fov / (fov + this.z);
+            if (scale < 0) return;
+
+            let x2d = cx + this.x * scale;
+            let y2d = cy + this.y; // 雪花只在Y轴下落，不随树旋转
+
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.8, scale)})`;
+            ctx.beginPath();
+            ctx.arc(x2d, y2d, this.size * scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // --- 初始化 ---
+    let particles = [];
+    let snowFlakes = [];
+    let heart = new Heart();
+
+    function init() {
+        particles = [];
+        snowFlakes = [];
+        // 1200个粒子组成的茂密树
+        for (let i = 0; i < 1200; i++) {
+            particles.push(new Particle());
+        }
+        // 200片雪花
+        for (let i = 0; i < 200; i++) {
+            snowFlakes.push(new Snow());
+        }
+    }
+    init();
+
+    // --- 动画循环 ---
+    let time = 0;
+    function animate() {
+        ctx.clearRect(0, 0, w, h);
+
+        const cx = w / 2;
+        const cy = h / 2 + 50;
+        time += 0.015;
+
+        // 旋转惯性逻辑
+        if (!isDragging) {
+            targetAngleY += autoRotateSpeed;
+        }
+        // 平滑过渡
+        angleY += (targetAngleY - angleY) * 0.1;
+
+        // 1. 绘制雪花
+        snowFlakes.forEach(s => s.draw(cx, cy));
+
+        // 2. 绘制树 (混合模式让灯光更亮)
+        ctx.globalCompositeOperation = 'lighter';
+        particles.forEach(p => p.draw(cx, cy, angleY, time));
+        
+        // 3. 绘制爱心
+        heart.draw(cx, cy, angleY, time);
+        
+        ctx.globalCompositeOperation = 'source-over';
+
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+</script>
+</body>
+</html>
